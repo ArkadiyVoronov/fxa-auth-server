@@ -127,6 +127,7 @@ const PUSH_METHOD_NAMES = [
   'notifyAccountUpdated',
   'notifyAccountDestroyed',
   'notifyProfileUpdated',
+  'notifyPushboxUpdated',
   'sendPush'
 ]
 

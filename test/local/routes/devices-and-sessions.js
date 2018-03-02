@@ -44,9 +44,12 @@ function makeRoutes (options = {}, requireMocks) {
     check: function () { return P.resolve(true) }
   }
   const push = options.push || require('../../../lib/push')(log, db, {})
+  const pushbox = options.pushbox || mocks.mockPushbox()
+  const oAuthMint = options.oAuthMint || mocks.mockOAuthMint()
   return proxyquire('../../../lib/routes/devices-and-sessions', requireMocks || {})(
-    log, db, config, customs, push,
-    options.devices || require('../../../lib/devices')(log, db, push)
+    log, db, config, customs, push, pushbox,
+    options.devices || require('../../../lib/devices')(log, db, push),
+    oAuthMint
   )
 }
 
@@ -411,7 +414,7 @@ describe('/account/devices/notify', function () {
     }
     config.deviceNotificationsEnabled = true
 
-    mockCustoms = mocks.mockCustoms({
+    const mockCustoms = mocks.mockCustoms({
       checkAuthenticated: error.tooManyRequests(1)
     })
     route = getRoute(makeRoutes({customs: mockCustoms}), '/account/devices/notify')
@@ -502,6 +505,57 @@ describe('/account/devices/notify', function () {
       assert.fail('should not have succeed')
     }, (err) => {
       assert.equal(err.errno, 107, 'invalid parameter in request body')
+    })
+  })
+
+  it('relays encrypted payloads to pushbox', () => {
+    mockPush.sendPush.reset()
+    const pushboxToken = '558f9980ad5a9c279beb52123653967342f702e84d3ab34c7f80427a6a37e2c0'
+    const mockOAuthMint = mocks.mockOAuthMint({
+      getOAuthToken: sinon.spy(() => {
+        return Promise.resolve({access_token: pushboxToken})
+      })
+    })
+    const mockPushbox = mocks.mockPushbox({
+      sendTab: sinon.spy(() => {
+        const m = new Map()
+        m.set('bogusid1', {index: 'abcd'})
+        m.set('bogusid2', {error: 'boom'}) // let's fail that one.
+        return Promise.resolve(m)
+      })
+    })
+    const encryptedPayload = 'eyJmb28iOiAiYmFyIn0'
+    mockRequest.payload = {
+      to: 'all',
+      _endpointAction: 'sendTab',
+      encryptedPayload
+    }
+    route = getRoute(makeRoutes({
+      customs: mockCustoms,
+      log: mockLog,
+      oAuthMint: mockOAuthMint,
+      push: mockPush,
+      pushbox: mockPushbox
+    }), '/account/devices/notify')
+
+    return runTest(route, mockRequest).then(() => {
+      assert.equal(mockPushbox.sendTab.callCount, 1, 'pushbox was called')
+      let args = mockPushbox.sendTab.args[0]
+      assert.equal(args.length, 4)
+      assert.equal(args[0], uid)
+      assert.deepEqual(args[1], ['bogusid1', 'bogusid2'])
+      assert.equal(args[2], encryptedPayload)
+      assert.equal(args[3], pushboxToken)
+
+      assert.equal(mockPush.notifyPushboxUpdated.callCount, 1,
+        'notifyPushboxUpdated was called for only one device')
+      args = mockPush.notifyPushboxUpdated.args[0]
+      assert.equal(args.length, 5)
+      assert.equal(args[0], uid)
+      assert.deepEqual(args[1], {id: 'bogusid1', type: 'mobile'})
+      assert.equal(args[2], 'sendtab')
+      assert.equal(args[3], 'sendTab')
+      assert.equal(args[4], 'abcd')
     })
   })
 })
