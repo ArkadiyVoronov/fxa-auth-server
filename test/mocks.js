@@ -126,6 +126,10 @@ const PUSH_METHOD_NAMES = [
   'sendPush'
 ]
 
+const PUSHBOX_METHOD_NAMES = [
+  'sendTab'
+]
+
 module.exports = {
   MOCK_PUSH_KEY: 'BDLugiRzQCANNj5KI1fAqui8ELrE7qboxzfa5K_R0wnUoJ89xY1D_SOXI_QJKNmellykaW_7U2BZ7hnrPW3A3LM',
   generateMetricsContext: generateMetricsContext,
@@ -137,6 +141,7 @@ module.exports = {
   mockMailer: mockObject(MAILER_METHOD_NAMES),
   mockMetricsContext,
   mockPush,
+  mockPushbox,
   mockRequest
 }
 
@@ -382,6 +387,17 @@ function mockPush (methods) {
     }
   })
   return push
+}
+
+function mockPushbox (methods) {
+  const pushbox = extend({}, methods)
+  // So far every pushbox method has a uid for first argument, let's keep it simple.
+  PUSHBOX_METHOD_NAMES.forEach((name) => {
+    if (! pushbox[name]) {
+      pushbox[name] = sinon.spy(() => P.resolve())
+    }
+  })
+  return pushbox
 }
 
 function mockDevices (data) {
