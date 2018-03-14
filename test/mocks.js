@@ -115,6 +115,10 @@ const METRICS_CONTEXT_METHOD_NAMES = [
   'validate'
 ]
 
+const OAUTH_MINT_METHOD_NAMES = [
+  'getOAuthToken'
+]
+
 const PUSH_METHOD_NAMES = [
   'notifyDeviceConnected',
   'notifyDeviceDisconnected',
@@ -140,6 +144,7 @@ module.exports = {
   mockLog: mockObject(LOG_METHOD_NAMES),
   mockMailer: mockObject(MAILER_METHOD_NAMES),
   mockMetricsContext,
+  mockOAuthMint,
   mockPush,
   mockPushbox,
   mockRequest
@@ -376,6 +381,16 @@ function mockObject (methodNames) {
       return object
     }, {})
   }
+}
+
+function mockOAuthMint(methods) {
+  const oAuthMint = extend({}, methods)
+  OAUTH_MINT_METHOD_NAMES.forEach((name) => {
+    if (! oAuthMint[name]) {
+      oAuthMint[name] = sinon.spy(() => P.resolve())
+    }
+  })
+  return oAuthMint
 }
 
 function mockPush (methods) {
